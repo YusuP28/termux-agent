@@ -333,7 +333,8 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       ];
       
       // Add recent messages (last 10)
-      for (final msg in _messages.reversed.take(10).reversed) {
+      final recentMessages = _messages.toList().reversed.take(10).toList().reversed;
+      for (final msg in recentMessages) {
         if (msg.type == MessageType.user) {
           messages.add({'role': 'user', 'content': msg.content});
         } else if (msg.type == MessageType.assistant) {

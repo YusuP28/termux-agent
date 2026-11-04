@@ -80,7 +80,7 @@ class ApiService {
       'model': model,
       'max_tokens': maxTokens,
       'messages': userMessages,
-      if (systemPrompt.isNotEmpty) 'system': systemPrompt,
+      if (systemPrompt != null && systemPrompt.isNotEmpty) 'system': systemPrompt,
     });
 
     headers['anthropic-version'] = '2023-06-01';

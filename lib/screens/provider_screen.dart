@@ -273,6 +273,12 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
   }
 
   @override
+  void dispose() {
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const Color bgPrimary = Color(0xFF0D1117);
     const Color bgSecondary = Color(0xFF161B22);
@@ -281,6 +287,8 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
     const Color accentCyan = Color(0xFF58A6FF);
     const Color accentGreen = Color(0xFF3FB950);
     const Color accentRed = Color(0xFFF85149);
+
+    final hasSavedKey = StorageService.hasApiKey(widget.provider.id);
 
     return Container(
       decoration: const BoxDecoration(
@@ -376,11 +384,11 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
           const SizedBox(height: 16),
 
           // Model selection
-          Text(
+          const Text(
             'Model Default',
             style: TextStyle(
               fontFamily: 'monospace',
-              color: const Color(0xFF8B949E),
+              color: Color(0xFF8B949E),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -430,11 +438,11 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
           if (widget.provider.requiresApiKey) ...[
             Row(
               children: [
-                Text(
+                const Text(
                   'API Key',
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: const Color(0xFF8B949E),
+                    color: Color(0xFF8B949E),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -492,11 +500,11 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    Text(
+                    const Text(
                       'Status: Terhubung ✓',
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: const Color(0xFF8B949E),
+                        color: Color(0xFF8B949E),
                         fontSize: 11,
                       ),
                     ),
@@ -508,7 +516,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
-                    controller: TextEditingController(),
+                    controller: _apiKeyController,
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       color: Color(0xFFC9D1D9),
@@ -539,7 +547,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.save, color: Color(0xFF58A6FF), size: 20),
-                        onPressed: () {},
+                        onPressed: _saveApiKey,
                       ),
                     ),
                   ),
