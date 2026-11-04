@@ -25,12 +25,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Generate Gradle wrapper
+      - name: Regenerate Gradle Wrapper
         run: |
-          # Generate wrapper in a clean temp dir to avoid build evaluation
           mkdir -p /tmp/gradle-gen
           cd /tmp/gradle-gen
+          # Inisialisasi build kosong agar gradle wrapper bisa jalan
+          gradle init --type basic --project-name temp --dsl groovy --package com.example.temp --yes
           gradle wrapper --gradle-version 8.13
+          
           # Copy wrapper files into the project
           cp gradlew "$GITHUB_WORKSPACE/android/gradlew"
           cp gradlew.bat "$GITHUB_WORKSPACE/android/gradlew.bat"
@@ -42,6 +44,10 @@ jobs:
 
       - name: Build Release APK
         run: |
+          cd android
+          ./gradlew assembleRelease
+          # Flutter juga perlu jalan untuk proses final
+          cd ..
           flutter build apk --release --target-platform android-arm64 --split-per-abi
 
       - name: Upload APK artifact
