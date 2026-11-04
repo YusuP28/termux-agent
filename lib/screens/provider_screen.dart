@@ -578,6 +578,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 ),
               ),
+          ),
 
           const SizedBox(height: 16),
         ],
