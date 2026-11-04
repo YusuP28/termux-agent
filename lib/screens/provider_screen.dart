@@ -302,7 +302,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           // Handle bar
           Center(
             child: Container(
@@ -318,7 +318,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
 
           // Provider header
           Row(
-            children: [
+            children: <Widget>[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -361,7 +361,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
           
           // Status & Auth type
           Row(
-            children: [
+            children: <Widget>[
               _StatusChip(
                 label: widget.provider.authTypeLabel,
                 color: const Color(0xFF58A6FF),
@@ -433,9 +433,9 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
           const SizedBox(height: 20),
 
           // API Key section
-          if (widget.provider.requiresApiKey) ...[
+          if (widget.provider.requiresApiKey) ...<Widget>[
             Row(
-              children: [
+              children: <Widget>[
                 const Text(
                   'API Key',
                   style: TextStyle(
@@ -481,9 +481,9 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                  children: <Widget>[
                     Row(
-                      children: [
+                      children: <Widget>[
                         const Icon(Icons.check_circle, color: Color(0xFF3FB950), size: 16),
                         const SizedBox(width: 8),
                         const Text(
@@ -512,7 +512,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
             else
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                children: <Widget>[
                   TextField(
                     controller: _apiKeyController,
                     style: const TextStyle(
