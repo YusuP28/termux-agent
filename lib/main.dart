@@ -29,13 +29,13 @@ class TermuxAgentApp extends StatelessWidget {
             fontFamily: 'monospace',
             color: textPrimary,
             fontSize: 14,
-            height: 1.5,
+            height: 1.25,
           ),
           bodyMedium: TextStyle(
             fontFamily: 'monospace',
             color: textMuted,
-            fontSize: 12,
-            height: 1.4,
+            fontSize: 11,
+            height: 1.3,
           ),
         ),
         colorScheme: const ColorScheme.dark(
@@ -48,7 +48,7 @@ class TermuxAgentApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.zero,
             borderSide: const BorderSide(color: Color(0xFF30363D)),
@@ -67,6 +67,7 @@ class TermuxAgentApp extends StatelessWidget {
             fontFamily: 'monospace',
             color: textMuted,
             fontSize: 13,
+            height: 1.25,
           ),
         ),
       ),
@@ -111,7 +112,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   void _addWelcomeMessage() {
     _messages.add(TerminalMessage(
       type: MessageType.assistant,
-      content: 'Halo! Saya Termux Agent.\n\nKetik pertanyaan atau perintah di bawah.\nContoh: "list files", "check storage", "run script"',
+      content: 'Halo! Saya Termux Agent.\n\nKetik pertanyaan atau perintah di bawah.\nContoh: "list file", "cek storage", "jalankan script"',
       timestamp: DateTime.now(),
     ));
   }
@@ -136,10 +137,10 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     Future.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       final responses = [
-        'Command executed successfully.\nOutput: [simulated result]',
-        'Processing request... Done.\nResult: OK',
-        'I understand. In terminal mode, I can help with:\n  • File operations\n  • Package management\n  • System info\n  • Script execution',
-        'Unknown command. Type "help" for usage.',
+        'Perintah dieksekusi dengan sukses.\nOutput: [simulasi hasil]',
+        'Memproses permintaan... Selesai.\nHasil: OK',
+        'Saya mengerti. Di mode terminal, saya bisa bantu:\n  • Operasi file\n  • Manajemen paket\n  • Info sistem\n  • Eksekusi script',
+        'Perintah tidak dikenal. Ketik "help" untuk bantuan.',
       ];
       final response = responses[_messages.length % responses.length];
 
@@ -194,20 +195,20 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     const Color accentCyan = Color(0xFF58A6FF);
     const Color accentGreen = Color(0xFF3FB950);
     const Color accentYellow = Color(0xFFD29922);
+    const Color accentRed = Color(0xFFF85149);
 
     final sessionDuration = DateTime.now().difference(_sessionStart);
 
     return Scaffold(
       backgroundColor: bgPrimary,
       body: SafeArea(
-        top: false,
-        bottom: true,
+        top: true,
+        bottom: false,
         child: Column(
           children: [
-            // ─── COMPACT HEADER ───
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
               decoration: BoxDecoration(
                 color: bgSecondary,
                 border: Border(
@@ -217,7 +218,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title row
                   Row(
                     children: [
                       const Text(
@@ -241,7 +241,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // Badge + Tips row
                   Row(
                     children: [
                       Container(
@@ -271,7 +270,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                             ),
                           ),
                           child: const Text(
-                            'TIP: Type "help" | "clear" to reset',
+                            'TIP: Ketik "help" | "clear" reset',
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: Color(0xFFD29922),
@@ -287,7 +286,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
 
-            // ─── CHAT AREA ───
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -302,9 +300,8 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
 
-            // ─── INPUT AREA ───
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               decoration: BoxDecoration(
                 color: bgSecondary,
                 border: Border(
@@ -312,7 +309,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                 ),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Text(
                     'USER > ',
@@ -323,6 +320,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _controller,
@@ -331,6 +329,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                         fontFamily: 'monospace',
                         color: Color(0xFFC9D1D9),
                         fontSize: 14,
+                        height: 1.25,
                       ),
                       maxLines: null,
                       textInputAction: TextInputAction.send,
@@ -339,66 +338,79 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                         hintText: 'Enter command...',
                         isCollapsed: true,
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward, color: Color(0xFF58A6FF), size: 22),
-                    onPressed: _isLoading ? null : _sendCommand,
-                    tooltip: 'Send',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_forward, color: Color(0xFF58A6FF), size: 20),
+                      onPressed: _isLoading ? null : _sendCommand,
+                      tooltip: 'Kirim',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // ─── STATUS BAR ───
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              color: bgSecondary,
-              child: Row(
-                children: [
-                  Text(
-                    'Session: ${_formatDuration(sessionDuration)}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      color: Color(0xFF8B949E),
-                      fontSize: 9,
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+              decoration: BoxDecoration(
+                color: bgSecondary,
+                border: Border(
+                  top: BorderSide(color: Color(0xFF30363D), width: 1),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                bottom: true,
+                minimum: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Text(
+                      'Session: ${_formatDuration(sessionDuration)}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF8B949E),
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'Tokens: ~${_tokenCount}',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      color: Color(0xFF8B949E),
-                      fontSize: 9,
+                    const SizedBox(width: 16),
+                    Text(
+                      'Tokens: ~${_tokenCount}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF8B949E),
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text(
-                    'Mode: BUILD',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: Color(0xFF3FB950),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(width: 16),
+                    const Text(
+                      'Mode: BUILD',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF3FB950),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'v1.0.0',
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      color: Color(0xFF484F58),
-                      fontSize: 9,
+                    const Spacer(),
+                    Text(
+                      'v1.0.0',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF484F58),
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -419,7 +431,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     switch (msg.type) {
       case MessageType.user:
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(vertical: 2),
           child: SelectableText.rich(
             TextSpan(
               children: [
@@ -430,6 +442,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                     color: accentBlue,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    height: 1.25,
                   ),
                 ),
                 TextSpan(
@@ -438,7 +451,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                     fontFamily: 'monospace',
                     color: textPrimary,
                     fontSize: 14,
-                    height: 1.5,
+                    height: 1.25,
                   ),
                 ),
               ],
@@ -448,8 +461,8 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
       case MessageType.assistant:
         return Container(
-          margin: const EdgeInsets.only(top: 8, bottom: 3),
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          margin: const EdgeInsets.only(top: 6, bottom: 2),
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
           decoration: BoxDecoration(
             color: bgSecondary,
             border: Border(
@@ -467,16 +480,17 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
+                  height: 1.2,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               SelectableText(
                 msg.content,
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: textPrimary,
                   fontSize: 14,
-                  height: 1.5,
+                  height: 1.25,
                 ),
               ),
             ],
@@ -485,7 +499,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
       case MessageType.system:
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(8),
@@ -499,7 +513,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                 fontFamily: 'monospace',
                 color: Color(0xFF8B949E),
                 fontSize: 11,
-                height: 1.4,
+                height: 1.3,
               ),
             ),
           ),
@@ -507,8 +521,8 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
       case MessageType.error:
         return Container(
-          margin: const EdgeInsets.only(top: 8, bottom: 3),
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          margin: const EdgeInsets.only(top: 6, bottom: 2),
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
           decoration: BoxDecoration(
             color: bgSecondary,
             border: Border(
@@ -528,14 +542,14 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                   letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               SelectableText(
                 msg.content,
                 style: const TextStyle(
                   fontFamily: 'monospace',
                   color: textPrimary,
                   fontSize: 14,
-                  height: 1.5,
+                  height: 1.25,
                 ),
               ),
             ],
@@ -546,8 +560,8 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
   Widget _buildTypingIndicator() {
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 3),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      margin: const EdgeInsets.only(top: 6, bottom: 2),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
         color: const Color(0xFF161B22),
         border: Border(
