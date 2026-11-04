@@ -56,7 +56,7 @@ class _ProviderScreenState extends State<ProviderScreen> {
         ),
       ),
       body: Column(
-        children: [
+        children: <Widget>[
           // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -124,12 +124,12 @@ class _ProviderScreenState extends State<ProviderScreen> {
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+        children: <Widget>[
           // Category header
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
             child: Row(
-              children: [
+              children: <Widget>[
                 Container(
                   width: 4,
                   height: 20,
