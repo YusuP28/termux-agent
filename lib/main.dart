@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const TermuxAgentApp());
@@ -94,10 +95,29 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   int _tokenCount = 0;
   late AnimationController _cursorController;
 
-  // FIX: Font size control for chat messages only
-  double _chatFontSize = 11.0; // Default reduced from 14 to 11
+  // Font size control
+  double _chatFontSize = 11.0;
   static const double _minFontSize = 8.0;
   static const double _maxFontSize = 24.0;
+
+  // Slash command autocomplete
+  final LayerLink _inputLayerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  final FocusNode _overlayFocusNode = FocusNode();
+  String _currentCommandQuery = '';
+  int _selectedCommandIndex = 0;
+  bool _showAutocomplete = false;
+
+  // Command definitions
+  final List<SlashCommand> _commands = [
+    SlashCommand('/help', 'Tampilkan bantuan'),
+    SlashCommand('/clear', 'Bersihkan riwayat chat'),
+    SlashCommand('/model', 'Ganti model AI (dummy)'),
+    SlashCommand('/stats', 'Statistik sesi'),
+    SlashCommand('/exit', 'Keluar aplikasi'),
+  ];
+
+  String _currentModel = 'gpt-oss-120b';
 
   @override
   void initState() {
@@ -112,19 +132,146 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
+
+    _controller.addListener(_onTextChanged);
+    _focusNode.addListener(_onFocusChanged);
   }
 
   void _addWelcomeMessage() {
     _messages.add(TerminalMessage(
       type: MessageType.assistant,
-      content: 'Halo! Saya Termux Agent.\n\nKetik pertanyaan atau perintah di bawah.\nContoh: "list file", "cek storage", "jalankan script"',
+      content: 'Halo! Saya Termux Agent.\n\nKetik pertanyaan atau perintah di bawah.\nContoh: "list file", "cek storage", "jalankan script"\n\nKetik "/" untuk melihat perintah slash yang tersedia.',
       timestamp: DateTime.now(),
     ));
+  }
+
+  void _onTextChanged() {
+    final text = _controller.text;
+    final cursorPos = _controller.selection.baseOffset;
+
+    // Check if we're at a slash command position
+    if (cursorPos > 0 && text.isNotEmpty) {
+      // Find the last slash before cursor
+      int slashIndex = -1;
+      for (int i = cursorPos - 1; i >= 0; i--) {
+        if (text[i] == ' ') break;
+        if (text[i] == '/') {
+          slashIndex = i;
+          break;
+        }
+      }
+
+      if (slashIndex != -1) {
+        final query = text.substring(slashIndex + 1, cursorPos);
+        _showAutocompleteForQuery(query, slashIndex);
+      } else {
+        _hideAutocomplete();
+      }
+    } else {
+      _hideAutocomplete();
+    }
+  }
+
+  void _onFocusChanged() {
+    if (!_focusNode.hasFocus) {
+      // Delay hiding to allow tap on overlay items
+      Future.delayed(const Duration(milliseconds: 100), _hideAutocomplete);
+    }
+  }
+
+  void _showAutocompleteForQuery(String query, int slashIndex) {
+    _currentCommandQuery = query.toLowerCase();
+    _selectedCommandIndex = 0;
+
+    final filtered = _commands.where((cmd) {
+      return cmd.name.toLowerCase().startsWith('/$_currentCommandQuery');
+    }).toList();
+
+    if (filtered.isEmpty) {
+      _hideAutocomplete();
+      return;
+    }
+
+    if (!_showAutocomplete) {
+      _showAutocomplete = true;
+      _overlayEntry = _createOverlayEntry(slashIndex);
+      Overlay.of(context).insert(_overlayEntry!);
+    } else {
+      _overlayEntry?.markNeedsBuild();
+    }
+  }
+
+  void _hideAutocomplete() {
+    if (_showAutocomplete) {
+      _showAutocomplete = false;
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  OverlayEntry _createOverlayEntry(int slashIndex) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    return OverlayEntry(
+      builder: (context) => _AutocompleteOverlay(
+        layerLink: _inputLayerLink,
+        commands: _commands.where((cmd) {
+          return cmd.name.toLowerCase().startsWith('/$_currentCommandQuery');
+        }).toList(),
+        selectedIndex: _selectedCommandIndex,
+        onSelect: (command) => _selectCommand(command, slashIndex),
+        onIndexChange: (index) => setState(() => _selectedCommandIndex = index),
+      ),
+    );
+  }
+
+  void _selectCommand(SlashCommand command, int slashIndex) {
+    final text = _controller.text;
+    final newText = text.substring(0, slashIndex) + command.name + ' ';
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+    _hideAutocomplete();
+    _focusNode.requestFocus();
+  }
+
+  void _handleKeyEvent(KeyEvent event) {
+    if (!_showAutocomplete) return;
+
+    final filtered = _commands.where((cmd) {
+      return cmd.name.toLowerCase().startsWith('/$_currentCommandQuery');
+    }).toList();
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _selectedCommandIndex = (_selectedCommandIndex + 1) % filtered.length;
+      });
+      _overlayEntry?.markNeedsBuild();
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _selectedCommandIndex = (_selectedCommandIndex - 1 + filtered.length) % filtered.length;
+      });
+      _overlayEntry?.markNeedsBuild();
+    } else if (event.logicalKey == LogicalKeyboardKey.enter ||
+               event.logicalKey == LogicalKeyboardKey.tab) {
+      if (filtered.isNotEmpty) {
+        _selectCommand(filtered[_selectedCommandIndex], 0); // slashIndex will be recalculated
+      }
+    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _hideAutocomplete();
+    }
   }
 
   void _sendCommand() {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
+
+    // Check if it's a slash command
+    if (text.startsWith('/')) {
+      _executeSlashCommand(text);
+      _controller.clear();
+      return;
+    }
 
     setState(() {
       _messages.add(TerminalMessage(
@@ -162,6 +309,128 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     });
   }
 
+  void _executeSlashCommand(String command) {
+    final parts = command.split(' ');
+    final cmd = parts[0].toLowerCase();
+
+    switch (cmd) {
+      case '/help':
+        _messages.add(TerminalMessage(
+          type: MessageType.system,
+          content: 'Daftar Perintah Slash:\n' +
+              _commands.map((c) => '${c.name.padRight(10)} - ${c.description}').join('\n'),
+          timestamp: DateTime.now(),
+        ));
+        break;
+
+      case '/clear':
+        setState(() {
+          _messages.clear();
+          _addWelcomeMessage();
+        });
+        break;
+
+      case '/model':
+        _showModelDialog();
+        break;
+
+      case '/stats':
+        final duration = DateTime.now().difference(_sessionStart);
+        final h = duration.inHours.toString().padLeft(2, '0');
+        final m = (duration.inMinutes % 60).toString().padLeft(2, '0');
+        final s = (duration.inSeconds % 60).toString().padLeft(2, '0');
+        _messages.add(TerminalMessage(
+          type: MessageType.system,
+          content: 'Statistik Sesi:\n  Session: $h:$m:$s\n  Tokens: ~${_tokenCount}\n  Mode: BUILD\n  Model: $_currentModel',
+          timestamp: DateTime.now(),
+        ));
+        break;
+
+      case '/exit':
+        SystemNavigator.pop();
+        break;
+
+      default:
+        _messages.add(TerminalMessage(
+          type: MessageType.error,
+          content: 'Perintah tidak dikenal: $cmd\nKetik /help untuk daftar perintah.',
+          timestamp: DateTime.now(),
+        ));
+    }
+    _scrollToBottom();
+  }
+
+  void _showModelDialog() {
+    const models = [
+      'gpt-oss-120b',
+      'llama-3.3-70b',
+      'claude-3.5-sonnet',
+      'gemini-1.5-pro',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161B22),
+        shape: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.5)),
+        title: const Text(
+          'Pilih Model',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: Color(0xFF58A6FF),
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: models.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 4),
+            itemBuilder: (context, index) {
+              final model = models[index];
+              final isSelected = model == _currentModel;
+              return ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                title: Text(
+                  model,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: isSelected ? const Color(0xFF58A6FF) : const Color(0xFFC9D1D9),
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                leading: isSelected
+                    ? const Icon(Icons.radio_button_checked, color: Color(0xFF58A6FF), size: 20)
+                    : const Icon(Icons.radio_button_unchecked, color: Color(0xFF8B949E), size: 20),
+                onTap: () {
+                  setState(() => _currentModel = model);
+                  Navigator.pop(context);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Batal',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Color(0xFF8B949E),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -174,7 +443,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     });
   }
 
-  // FIX: Font size adjustment methods
   void _decreaseFontSize() {
     setState(() {
       if (_chatFontSize > _minFontSize) {
@@ -206,9 +474,13 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     _scrollController.dispose();
+    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
+    _overlayFocusNode.dispose();
+    _hideAutocomplete();
     _sessionTimer.cancel();
     _cursorController.dispose();
     super.dispose();
@@ -232,241 +504,247 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       body: SafeArea(
         top: true,
         bottom: false,
-        child: Column(
-          children: [
-            // ─── COMPACT HEADER with Font Size Controls ───
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              decoration: BoxDecoration(
-                color: bgSecondary,
-                border: Border(
-                  bottom: BorderSide(color: accentCyan.withOpacity(0.4), width: 1),
+        child: KeyboardListener(
+          focusNode: _overlayFocusNode,
+          onKeyEvent: _handleKeyEvent,
+          child: Column(
+            children: [
+              // ─── COMPACT HEADER with Font Size Controls ───
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                decoration: BoxDecoration(
+                  color: bgSecondary,
+                  border: Border(
+                    bottom: BorderSide(color: accentCyan.withOpacity(0.4), width: 1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title row with font controls
+                    Row(
+                      children: [
+                        const Text(
+                          '⚡ Termux Agent',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFF58A6FF),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Font size controls
+                        _buildFontSizeButton(
+                          label: 'A-',
+                          onPressed: _decreaseFontSize,
+                          tooltip: 'Perkecil font (${_chatFontSize.toInt()})',
+                        ),
+                        const SizedBox(width: 4),
+                        _buildFontSizeButton(
+                          label: 'A+',
+                          onPressed: _increaseFontSize,
+                          tooltip: 'Perbesar font (${_chatFontSize.toInt()})',
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Model: $_currentModel',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Badge + Tips row
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: accentGreen.withOpacity(0.12),
+                            border: Border.all(color: accentGreen, width: 1),
+                          ),
+                          child: const Text(
+                            'BUILD',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: Color(0xFF3FB950),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: bgPrimary,
+                              border: Border(
+                                left: BorderSide(color: accentYellow, width: 2),
+                              ),
+                            ),
+                            child: const Text(
+                              'TIP: Ketik "/" untuk slash commands | A-/A+ zoom font',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: Color(0xFFD29922),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title row with font controls
-                  Row(
+
+              // ─── CHAT AREA ───
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                  itemCount: _messages.length + (_isLoading ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index == _messages.length) {
+                      return _buildTypingIndicator();
+                    }
+                    return _buildTerminalMessage(_messages[index]);
+                  },
+                ),
+              ),
+
+              // ─── INPUT AREA ───
+              CompositedTransformTarget(
+                link: _inputLayerLink,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  decoration: BoxDecoration(
+                    color: bgSecondary,
+                    border: Border(
+                      top: BorderSide(color: Color(0xFF30363D), width: 1),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const Text(
-                        '⚡ Termux Agent',
+                        'USER > ',
                         style: TextStyle(
                           fontFamily: 'monospace',
                           color: Color(0xFF58A6FF),
-                          fontSize: 18,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Spacer(),
-                      // FIX: Font size controls (A- / A+)
-                      _buildFontSizeButton(
-                        label: 'A-',
-                        onPressed: _decreaseFontSize,
-                        tooltip: 'Perkecil font (${_chatFontSize.toInt()})',
-                      ),
-                      const SizedBox(width: 4),
-                      _buildFontSizeButton(
-                        label: 'A+',
-                        onPressed: _increaseFontSize,
-                        tooltip: 'Perbesar font (${_chatFontSize.toInt()})',
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFFC9D1D9),
+                            fontSize: 14,
+                            height: 1.25,
+                          ),
+                          maxLines: null,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendCommand(),
+                          decoration: const InputDecoration(
+                            hintText: 'Enter command... (ketik "/" untuk slash commands)',
+                            isCollapsed: true,
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_forward, color: Color(0xFF58A6FF), size: 20),
+                          onPressed: _isLoading ? null : _sendCommand,
+                          tooltip: 'Kirim',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ─── FOOTER STATUS BAR ───
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                decoration: BoxDecoration(
+                  color: bgSecondary,
+                  border: Border(
+                    top: BorderSide(color: Color(0xFF30363D), width: 1),
+                  ),
+                ),
+                child: SafeArea(
+                  top: false,
+                  bottom: true,
+                  minimum: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
                       Text(
-                        'Model: gpt-oss-120b',
+                        'Session: ${_formatDuration(sessionDuration)}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFF8B949E),
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Tokens: ~${_tokenCount}',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFF8B949E),
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Text(
+                        'Mode: BUILD',
                         style: TextStyle(
                           fontFamily: 'monospace',
-                          color: textMuted,
+                          color: Color(0xFF3FB950),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'v1.0.0',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFF484F58),
                           fontSize: 10,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  // Badge + Tips row
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: accentGreen.withOpacity(0.12),
-                          border: Border.all(color: accentGreen, width: 1),
-                        ),
-                        child: const Text(
-                          'BUILD',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color(0xFF3FB950),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: bgPrimary,
-                            border: Border(
-                              left: BorderSide(color: accentYellow, width: 2),
-                            ),
-                          ),
-                          child: const Text(
-                            'TIP: Ketik "help" | "clear" reset | A-/A+ zoom font',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: Color(0xFFD29922),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // ─── CHAT AREA ───
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                itemCount: _messages.length + (_isLoading ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == _messages.length) {
-                    return _buildTypingIndicator();
-                  }
-                  return _buildTerminalMessage(_messages[index]);
-                },
-              ),
-            ),
-
-            // ─── INPUT AREA ───
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              decoration: BoxDecoration(
-                color: bgSecondary,
-                border: Border(
-                  top: BorderSide(color: Color(0xFF30363D), width: 1),
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Text(
-                    'USER > ',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: Color(0xFF58A6FF),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: Color(0xFFC9D1D9),
-                        fontSize: 14,
-                        height: 1.25,
-                      ),
-                      maxLines: null,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendCommand(),
-                      decoration: const InputDecoration(
-                        hintText: 'Enter command...',
-                        isCollapsed: true,
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_forward, color: Color(0xFF58A6FF), size: 20),
-                      onPressed: _isLoading ? null : _sendCommand,
-                      tooltip: 'Kirim',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ─── FOOTER STATUS BAR ───
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              decoration: BoxDecoration(
-                color: bgSecondary,
-                border: Border(
-                  top: BorderSide(color: Color(0xFF30363D), width: 1),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                bottom: true,
-                minimum: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Text(
-                      'Session: ${_formatDuration(sessionDuration)}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: Color(0xFF8B949E),
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Tokens: ~${_tokenCount}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: Color(0xFF8B949E),
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Text(
-                      'Mode: BUILD',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: Color(0xFF3FB950),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      'v1.0.0',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: Color(0xFF484F58),
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // FIX: Helper widget for font size buttons
   Widget _buildFontSizeButton({
     required String label,
     required VoidCallback onPressed,
@@ -474,7 +752,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   }) {
     const Color accentCyan = Color(0xFF58A6FF);
     const Color bgSecondary = Color(0xFF161B22);
-    const Color textMuted = Color(0xFF8B949E);
 
     return Tooltip(
       message: tooltip,
@@ -508,7 +785,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     );
   }
 
-  // FIX: Chat messages now use _chatFontSize variable
   Widget _buildTerminalMessage(TerminalMessage msg) {
     const Color bgPrimary = Color(0xFF0D1117);
     const Color bgSecondary = Color(0xFF161B22);
@@ -518,7 +794,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     const Color accentGreen = Color(0xFF3FB950);
     const Color accentRed = Color(0xFFF85149);
 
-    // FIX: TextStyle factory using _chatFontSize
     final chatStyle = TextStyle(
       fontFamily: 'monospace',
       color: textPrimary,
@@ -596,10 +871,10 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
             ),
             child: SelectableText(
               msg.content,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'monospace',
-                color: Color(0xFF8B949E),
-                fontSize: 11,
+                color: const Color(0xFF8B949E),
+                fontSize: _chatFontSize,
                 height: 1.3,
               ),
             ),
@@ -695,6 +970,103 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       ),
     );
   }
+}
+
+class _AutocompleteOverlay extends StatelessWidget {
+  final LayerLink layerLink;
+  final List<SlashCommand> commands;
+  final int selectedIndex;
+  final Function(SlashCommand) onSelect;
+  final Function(int) onIndexChange;
+
+  const _AutocompleteOverlay({
+    required this.layerLink,
+    required this.commands,
+    required this.selectedIndex,
+    required this.onSelect,
+    required this.onIndexChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const Color bgSecondary = Color(0xFF161B22);
+    const Color accentCyan = Color(0xFF58A6FF);
+    const Color textPrimary = Color(0xFFC9D1D9);
+    const Color textMuted = Color(0xFF8B949E);
+
+    return CompositedTransformFollower(
+      link: layerLink,
+      showWhenUnlinked: false,
+      offset: const Offset(0, -200), // Position above input
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 200, maxWidth: 320),
+          decoration: BoxDecoration(
+            color: bgSecondary,
+            border: Border.all(color: accentCyan.withOpacity(0.5), width: 1),
+            borderRadius: BorderRadius.zero,
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: commands.length,
+            separatorBuilder: (_, __) => Divider(
+              color: accentCyan.withOpacity(0.15),
+              height: 1,
+              thickness: 1,
+              indent: 8,
+              endIndent: 8,
+            ),
+            itemBuilder: (context, index) {
+              final cmd = commands[index];
+              final isSelected = index == selectedIndex;
+              return InkWell(
+                onTap: () => onSelect(cmd),
+                onHover: (_) => onIndexChange(index),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  color: isSelected ? accentCyan.withOpacity(0.1) : Colors.transparent,
+                  child: Row(
+                    children: [
+                      Text(
+                        cmd.name,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: isSelected ? accentCyan : textPrimary,
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          cmd.description,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: textMuted,
+                            fontSize: 11,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SlashCommand {
+  final String name;
+  final String description;
+
+  SlashCommand(this.name, this.description);
 }
 
 enum MessageType { user, assistant, system, error }
