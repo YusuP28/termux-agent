@@ -94,6 +94,11 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   int _tokenCount = 0;
   late AnimationController _cursorController;
 
+  // FIX: Font size control for chat messages only
+  double _chatFontSize = 11.0; // Default reduced from 14 to 11
+  static const double _minFontSize = 8.0;
+  static const double _maxFontSize = 24.0;
+
   @override
   void initState() {
     super.initState();
@@ -139,7 +144,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       final responses = [
         'Perintah dieksekusi dengan sukses.\nOutput: [simulasi hasil]',
         'Memproses permintaan... Selesai.\nHasil: OK',
-        'Saya mengerti. Di mode terminal, saya bisa bantu:\n  • Operasi file\n  • Manajemen paket\n  • Info sistem\n  • Eksekusi script',
+        'Saya mengerti. Di mode terminal, saya bisa bantu:\n  • Operasi file\n  • Manajemen paket\n        • Info sistem\n  • Eksekusi script',
         'Perintah tidak dikenal. Ketik "help" untuk bantuan.',
       ];
       final response = responses[_messages.length % responses.length];
@@ -166,6 +171,29 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           curve: Curves.easeOut,
         );
       }
+    });
+  }
+
+  // FIX: Font size adjustment methods
+  void _decreaseFontSize() {
+    setState(() {
+      if (_chatFontSize > _minFontSize) {
+        _chatFontSize -= 1.0;
+      }
+    });
+  }
+
+  void _increaseFontSize() {
+    setState(() {
+      if (_chatFontSize < _maxFontSize) {
+        _chatFontSize += 1.0;
+      }
+    });
+  }
+
+  void _resetFontSize() {
+    setState(() {
+      _chatFontSize = 11.0;
     });
   }
 
@@ -206,6 +234,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
         bottom: false,
         child: Column(
           children: [
+            // ─── COMPACT HEADER with Font Size Controls ───
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -218,6 +247,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Title row with font controls
                   Row(
                     children: [
                       const Text(
@@ -230,6 +260,19 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                         ),
                       ),
                       const Spacer(),
+                      // FIX: Font size controls (A- / A+)
+                      _buildFontSizeButton(
+                        label: 'A-',
+                        onPressed: _decreaseFontSize,
+                        tooltip: 'Perkecil font (${_chatFontSize.toInt()})',
+                      ),
+                      const SizedBox(width: 4),
+                      _buildFontSizeButton(
+                        label: 'A+',
+                        onPressed: _increaseFontSize,
+                        tooltip: 'Perbesar font (${_chatFontSize.toInt()})',
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         'Model: gpt-oss-120b',
                         style: TextStyle(
@@ -241,6 +284,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                     ],
                   ),
                   const SizedBox(height: 4),
+                  // Badge + Tips row
                   Row(
                     children: [
                       Container(
@@ -270,7 +314,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                             ),
                           ),
                           child: const Text(
-                            'TIP: Ketik "help" | "clear" reset',
+                            'TIP: Ketik "help" | "clear" reset | A-/A+ zoom font',
                             style: TextStyle(
                               fontFamily: 'monospace',
                               color: Color(0xFFD29922),
@@ -286,6 +330,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
 
+            // ─── CHAT AREA ───
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -300,6 +345,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
 
+            // ─── INPUT AREA ───
             Container(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               decoration: BoxDecoration(
@@ -358,6 +404,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
 
+            // ─── FOOTER STATUS BAR ───
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
@@ -419,6 +466,49 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     );
   }
 
+  // FIX: Helper widget for font size buttons
+  Widget _buildFontSizeButton({
+    required String label,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
+    const Color accentCyan = Color(0xFF58A6FF);
+    const Color bgSecondary = Color(0xFF161B22);
+    const Color textMuted = Color(0xFF8B949E);
+
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: TextButton(
+          onPressed: onPressed,
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(28, 28),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            backgroundColor: bgSecondary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+              side: BorderSide(color: accentCyan.withOpacity(0.5), width: 1),
+            ),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              color: accentCyan,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              height: 1.0,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // FIX: Chat messages now use _chatFontSize variable
   Widget _buildTerminalMessage(TerminalMessage msg) {
     const Color bgPrimary = Color(0xFF0D1117);
     const Color bgSecondary = Color(0xFF161B22);
@@ -428,6 +518,23 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     const Color accentGreen = Color(0xFF3FB950);
     const Color accentRed = Color(0xFFF85149);
 
+    // FIX: TextStyle factory using _chatFontSize
+    final chatStyle = TextStyle(
+      fontFamily: 'monospace',
+      color: textPrimary,
+      fontSize: _chatFontSize,
+      height: 1.25,
+    );
+
+    final labelStyle = TextStyle(
+      fontFamily: 'monospace',
+      color: accentCyan,
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
+      letterSpacing: 0.5,
+      height: 1.2,
+    );
+
     switch (msg.type) {
       case MessageType.user:
         return Padding(
@@ -435,24 +542,16 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           child: SelectableText.rich(
             TextSpan(
               children: [
-                const TextSpan(
+                TextSpan(
                   text: 'USER > ',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
+                  style: chatStyle.copyWith(
                     color: accentBlue,
-                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    height: 1.25,
                   ),
                 ),
                 TextSpan(
                   text: msg.content,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    color: textPrimary,
-                    fontSize: 14,
-                    height: 1.25,
-                  ),
+                  style: chatStyle,
                 ),
               ],
             ),
@@ -472,26 +571,14 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '🤖 ASSISTANT',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: accentCyan,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                  height: 1.2,
-                ),
+                style: labelStyle,
               ),
               const SizedBox(height: 3),
               SelectableText(
                 msg.content,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: textPrimary,
-                  fontSize: 14,
-                  height: 1.25,
-                ),
+                style: chatStyle,
               ),
             ],
           ),
@@ -532,25 +619,14 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 '✖ ERROR',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: accentRed,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
+                style: labelStyle.copyWith(color: accentRed),
               ),
               const SizedBox(height: 3),
               SelectableText(
                 msg.content,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: textPrimary,
-                  fontSize: 14,
-                  height: 1.25,
-                ),
+                style: chatStyle,
               ),
             ],
           ),
@@ -559,13 +635,15 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   }
 
   Widget _buildTypingIndicator() {
+    const Color accentCyan = Color(0xFF58A6FF);
+
     return Container(
       margin: const EdgeInsets.only(top: 6, bottom: 2),
       padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
       decoration: BoxDecoration(
         color: const Color(0xFF161B22),
         border: Border(
-          left: BorderSide(color: const Color(0xFF58A6FF), width: 2),
+          left: BorderSide(color: accentCyan, width: 2),
         ),
       ),
       child: Row(
@@ -574,7 +652,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
             '🤖 ASSISTANT ',
             style: TextStyle(
               fontFamily: 'monospace',
-              color: Color(0xFF58A6FF),
+              color: accentCyan,
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
