@@ -53,6 +53,16 @@ class ApiService {
       ).timeout(_timeout);
 
       return _handleResponse(response, provider.id);
+    } on http.ClientException catch (e) {
+      // Handle connection errors for local providers like OmniRoute
+      if (provider.id == 'omniroute') {
+        throw Exception(
+          'OmniRoute tidak dapat dihubungi. '
+          'Pastikan server OmniRoute berjalan di Termux (jalankan: omnirouter). '
+          'Error: ${e.message}',
+        );
+      }
+      throw Exception('Gagal terhubung ke server: ${e.message}');
     } catch (e) {
       throw Exception('Gagal mengirim pesan: $e');
     }

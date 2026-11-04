@@ -247,6 +247,27 @@ final List<Provider> allProviders = [
     requiresApiKey: true,
     apiKeyEnvVar: 'TAVILY_API_KEY',
   ),
+
+  // KATEGORI: Gateway - OmniRoute (Lokal)
+  Provider(
+    id: 'omniroute',
+    name: 'OmniRoute (Lokal)',
+    category: ProviderCategory.gateway,
+    authType: AuthType.apiKey,
+    baseUrl: 'http://127.0.0.1:20128/v1',
+    defaultModel: 'ALL-FREE',
+    models: [
+      'ALL-FREE',
+      'auto',
+      'OMNICOMBO',
+      'groq/openai/gpt-oss-120b',
+      'gemini/gemini-2.0-flash-exp',
+      'openai/gpt-4o',
+      'anthropic/claude-3.5-sonnet',
+    ],
+    requiresApiKey: true,
+    apiKeyEnvVar: 'OMNIROUTE_API_KEY',
+  ),
 ];
 
 // Helper functions
