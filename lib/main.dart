@@ -24,7 +24,6 @@ class TermuxAgentApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: bgPrimary,
-        fontFamily: 'monospace',
         textTheme: const TextTheme(
           bodyLarge: TextStyle(
             fontFamily: 'monospace',
