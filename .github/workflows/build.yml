@@ -1,0 +1,83 @@
+name: Build Termux Agent
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Setup Java 21 ────────────────────────────────────
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # ── 3. Setup Flutter ────────────────────────────────────
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # ── 4. Pub Get ──────────────────────────────────────────
+      - name: Install dependencies
+        run: flutter pub get
+
+      # ── 5. Android SDK setup ────────────────────────────────
+      - name: Setup Android SDK
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "platform-tools" > /dev/null 2>&1 || true
+
+      # ── 6. Gradle Wrapper JAR ───────────────────────────────
+      - name: Download Gradle wrapper JAR
+        run: |
+          cd android/gradle/wrapper
+          if [ ! -f gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
+            curl -fsSL -o gradle-wrapper.jar \
+              "https://raw.githubusercontent.com/gradle/gradle/v8.10/gradle/wrapper/gradle-wrapper.jar"
+          fi
+          cd ../..
+          chmod +x android/gradlew
+
+      # ── 7. Decode Keystore (if secrets available) ──────────
+      - name: Decode Keystore
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+          echo "Keystore decoded to keystore.jks"
+
+      # ── 8. Build APK ────────────────────────────────────────
+      - name: Build Release APK
+        env:
+          KEYSTORE_PATH: ${{ secrets.KEYSTORE_BASE64 != '' && format('{0}/keystore.jks', github.workspace) || '' }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          flutter build apk --release \
+            --target-platform android-arm64 \
+            --split-per-abi
+
+      # ── 9. Upload APK artifacts ─────────────────────────────
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-agent-arm64-release
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: warn
+          retention-days: 30

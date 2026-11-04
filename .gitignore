@@ -1,0 +1,39 @@
+# Flutter/Dart
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+android/key.properties
+android/keystore.jks
+android/*.jks
+android/*.keystore
+
+# Keystore files (root)
+keystore.jks
+*.keystore
+*.jks
+!android/gradle/wrapper/gradle-wrapper.jar
+
+# Generated
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI
+*.log
+
