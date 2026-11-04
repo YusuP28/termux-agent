@@ -557,29 +557,29 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
           const SizedBox(height: 20),
 
           // Set as active button
-          if (!widget.isActive)
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.check_circle_outline, size: 18),
-                label: const Text(
-                  'Jadikan Provider Aktif',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+          widget.isActive
+              ? const SizedBox.shrink()
+              : SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text(
+                      'Jadikan Provider Aktif',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    onPressed: widget.onSetActive,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF58A6FF),
+                      foregroundColor: const Color(0xFF0D1117),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                    ),
                   ),
-                ),
-                onPressed: widget.onSetActive,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF58A6FF),
-                  foregroundColor: const Color(0xFF0D1117),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                ),
               ),
-          else
-            const SizedBox.shrink(),
 
           const SizedBox(height: 16),
         ],
