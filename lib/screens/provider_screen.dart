@@ -288,8 +288,6 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
     const Color accentGreen = Color(0xFF3FB950);
     const Color accentRed = Color(0xFFF85149);
 
-    final hasSavedKey = StorageService.hasApiKey(widget.provider.id);
-
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF161B22),
