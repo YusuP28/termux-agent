@@ -577,7 +577,7 @@ class _ProviderConfigSheetState extends State<_ProviderConfigSheet> {
                   foregroundColor: const Color(0xFF0D1117),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                 ),
-              )
+              ),
           else
             const SizedBox.shrink(),
 
