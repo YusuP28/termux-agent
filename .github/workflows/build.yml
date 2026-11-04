@@ -27,7 +27,7 @@ jobs:
 
       - name: Download Gradle 8.13 and regenerate wrapper
         run: |
-          GRADLE_VERSION=8.13
+          GRADLE_VERSION=8.14
           curl -fsSL -o /tmp/gradle.zip \
             "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
           unzip -q /tmp/gradle.zip -d /tmp/
