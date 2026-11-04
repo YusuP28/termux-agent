@@ -47,9 +47,24 @@ class TermuxAgentApp extends StatelessWidget {
           onSurface: textPrimary,
           onBackground: textPrimary,
         ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: bgSecondary,
+          shape: Border.all(color: accentCyan.withOpacity(0.5), width: 1),
+          titleTextStyle: const TextStyle(
+            fontFamily: 'monospace',
+            color: accentCyan,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+          contentTextStyle: const TextStyle(
+            fontFamily: 'monospace',
+            color: textPrimary,
+            fontSize: 13,
+          ),
+        ),
         inputDecorationTheme: InputDecorationTheme(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.zero,
             borderSide: const BorderSide(color: Color(0xFF30363D)),
@@ -108,11 +123,11 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   int _selectedCommandIndex = 0;
   bool _showAutocomplete = false;
 
-  // Command definitions
+  // Commands & Model
   final List<SlashCommand> _commands = [
     SlashCommand('/help', 'Tampilkan bantuan'),
     SlashCommand('/clear', 'Bersihkan riwayat chat'),
-    SlashCommand('/model', 'Ganti model AI (dummy)'),
+    SlashCommand('/model', 'Ganti model AI'),
     SlashCommand('/stats', 'Statistik sesi'),
     SlashCommand('/exit', 'Keluar aplikasi'),
   ];
@@ -149,9 +164,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     final text = _controller.text;
     final cursorPos = _controller.selection.baseOffset;
 
-    // Check if we're at a slash command position
     if (cursorPos > 0 && text.isNotEmpty) {
-      // Find the last slash before cursor
       int slashIndex = -1;
       for (int i = cursorPos - 1; i >= 0; i--) {
         if (text[i] == ' ') break;
@@ -174,7 +187,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
   void _onFocusChanged() {
     if (!_focusNode.hasFocus) {
-      // Delay hiding to allow tap on overlay items
       Future.delayed(const Duration(milliseconds: 100), _hideAutocomplete);
     }
   }
@@ -210,7 +222,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   }
 
   OverlayEntry _createOverlayEntry(int slashIndex) {
-    final renderBox = context.findRenderObject() as RenderBox?;
     return OverlayEntry(
       builder: (context) => _AutocompleteOverlay(
         layerLink: _inputLayerLink,
@@ -255,7 +266,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     } else if (event.logicalKey == LogicalKeyboardKey.enter ||
                event.logicalKey == LogicalKeyboardKey.tab) {
       if (filtered.isNotEmpty) {
-        _selectCommand(filtered[_selectedCommandIndex], 0); // slashIndex will be recalculated
+        _selectCommand(filtered[_selectedCommandIndex], 0);
       }
     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
       _hideAutocomplete();
@@ -266,7 +277,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
 
-    // Check if it's a slash command
     if (text.startsWith('/')) {
       _executeSlashCommand(text);
       _controller.clear();
@@ -372,7 +382,10 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF161B22),
-        shape: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.5)),
+        shape: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.5), width: 1),
+        titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         title: const Text(
           'Pilih Model',
           style: TextStyle(
@@ -387,29 +400,45 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           child: ListView.separated(
             shrinkWrap: true,
             itemCount: models.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 4),
+            separatorBuilder: (_, __) => const Divider(
+              color: Color(0xFF30363D),
+              height: 1,
+              thickness: 1,
+              indent: 8,
+              endIndent: 8,
+            ),
             itemBuilder: (context, index) {
               final model = models[index];
               final isSelected = model == _currentModel;
-              return ListTile(
-                dense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                title: Text(
-                  model,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: isSelected ? const Color(0xFF58A6FF) : const Color(0xFFC9D1D9),
-                    fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                leading: isSelected
-                    ? const Icon(Icons.radio_button_checked, color: Color(0xFF58A6FF), size: 20)
-                    : const Icon(Icons.radio_button_unchecked, color: Color(0xFF8B949E), size: 20),
+              return InkWell(
                 onTap: () {
                   setState(() => _currentModel = model);
                   Navigator.pop(context);
                 },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        color: isSelected ? const Color(0xFF58A6FF) : const Color(0xFF8B949E),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          model,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: isSelected ? const Color(0xFF58A6FF) : const Color(0xFFC9D1D9),
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),
@@ -427,6 +456,170 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF161B22),
+          shape: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.5), width: 1),
+          titlePadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          contentPadding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          title: const Text(
+            'Pengaturan',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: Color(0xFF58A6FF),
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Font Size Section
+              const Text(
+                'Ukuran Font Chat',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF58A6FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    'A-',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _chatFontSize <= _minFontSize ? const Color(0xFF8B949E) : const Color(0xFF58A6FF),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 4,
+                        activeTrackColor: const Color(0xFF58A6FF),
+                        inactiveTrackColor: const Color(0xFF30363D),
+                        thumbColor: const Color(0xFF58A6FF),
+                        overlayColor: const Color(0xFF58A6FF).withOpacity(0.2),
+                        valueIndicatorColor: const Color(0xFF58A6FF),
+                        valueIndicatorTextStyle: const TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFF0D1117),
+                          fontSize: 11,
+                        ),
+                      ),
+                      child: Slider(
+                        value: _chatFontSize,
+                        min: _minFontSize,
+                        max: _maxFontSize,
+                        divisions: ((_maxFontSize - _minFontSize)).toInt(),
+                        label: _chatFontSize.toInt().toString(),
+                        onChanged: (value) {
+                          setDialogState(() => _chatFontSize = value);
+                          setState(() => _chatFontSize = value);
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'A+',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: _chatFontSize >= _maxFontSize ? const Color(0xFF8B949E) : const Color(0xFF58A6FF),
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: Text(
+                  'Ukuran: ${_chatFontSize.toInt()}sp',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: Color(0xFF8B949E),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Color(0xFF30363D), height: 1),
+              const SizedBox(height: 16),
+
+              // Model Selection Section
+              const Text(
+                'Model AI',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF58A6FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.smart_toy, size: 18, color: Color(0xFF58A6FF)),
+                  label: Text(
+                    'Pilih Model (${_currentModel})',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFF58A6FF),
+                      fontSize: 12,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    side: BorderSide(color: const Color(0xFF58A6FF).withOpacity(0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showModelDialog();
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Model saat ini: $_currentModel',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF8B949E),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Tutup',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF8B949E),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -509,97 +702,59 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           onKeyEvent: _handleKeyEvent,
           child: Column(
             children: [
-              // ─── COMPACT HEADER with Font Size Controls ───
+              // ─── CLEAN HEADER ───
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                 decoration: BoxDecoration(
                   color: bgSecondary,
                   border: Border(
                     bottom: BorderSide(color: accentCyan.withOpacity(0.4), width: 1),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    // Title row with font controls
-                    Row(
-                      children: [
-                        const Text(
-                          '⚡ Termux Agent',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color(0xFF58A6FF),
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        // Font size controls
-                        _buildFontSizeButton(
-                          label: 'A-',
-                          onPressed: _decreaseFontSize,
-                          tooltip: 'Perkecil font (${_chatFontSize.toInt()})',
-                        ),
-                        const SizedBox(width: 4),
-                        _buildFontSizeButton(
-                          label: 'A+',
-                          onPressed: _increaseFontSize,
-                          tooltip: 'Perbesar font (${_chatFontSize.toInt()})',
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Model: $_currentModel',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: textMuted,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      '⚡ Termux Agent',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF58A6FF),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    // Badge + Tips row
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: accentGreen.withOpacity(0.12),
-                            border: Border.all(color: accentGreen, width: 1),
-                          ),
-                          child: const Text(
-                            'BUILD',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: Color(0xFF3FB950),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: accentGreen.withOpacity(0.12),
+                        border: Border.all(color: accentGreen, width: 1),
+                      ),
+                      child: const Text(
+                        'BUILD',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color(0xFF3FB950),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: bgPrimary,
-                              border: Border(
-                                left: BorderSide(color: accentYellow, width: 2),
-                              ),
-                            ),
-                            child: const Text(
-                              'TIP: Ketik "/" untuk slash commands | A-/A+ zoom font',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: Color(0xFFD29922),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Settings icon
+                    Tooltip(
+                      message: 'Pengaturan (Font & Model)',
+                      child: SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: IconButton(
+                          icon: const Icon(Icons.settings, color: Color(0xFF58A6FF), size: 20),
+                          onPressed: _showSettingsDialog,
+                          tooltip: 'Pengaturan',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -620,11 +775,11 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                 ),
               ),
 
-              // ─── INPUT AREA ───
+              // ─── INPUT AREA (Compact) ───
               CompositedTransformTarget(
                 link: _inputLayerLink,
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
                   decoration: BoxDecoration(
                     color: bgSecondary,
                     border: Border(
@@ -645,23 +800,26 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color(0xFFC9D1D9),
-                            fontSize: 14,
-                            height: 1.25,
-                          ),
-                          maxLines: null,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _sendCommand(),
-                          decoration: const InputDecoration(
-                            hintText: 'Enter command... (ketik "/" untuk slash commands)',
-                            isCollapsed: true,
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 8),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 44),
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              color: Color(0xFFC9D1D9),
+                              fontSize: 14,
+                              height: 1.25,
+                            ),
+                            maxLines: 1,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _sendCommand(),
+                            decoration: const InputDecoration(
+                              hintText: 'Ketik pesan atau perintah...',
+                              isCollapsed: true,
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 6),
+                            ),
                           ),
                         ),
                       ),
@@ -679,6 +837,34 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                       ),
                     ],
                   ),
+                ),
+              ),
+
+              // ─── MODEL INFO (below input) ───
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                color: bgSecondary,
+                child: Row(
+                  children: [
+                    const Text(
+                      'Model: ',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF8B949E),
+                        fontSize: 10,
+                      ),
+                    ),
+                    Text(
+                      _currentModel,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: Color(0xFF58A6FF),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -739,46 +925,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFontSizeButton({
-    required String label,
-    required VoidCallback onPressed,
-    required String tooltip,
-  }) {
-    const Color accentCyan = Color(0xFF58A6FF);
-    const Color bgSecondary = Color(0xFF161B22);
-
-    return Tooltip(
-      message: tooltip,
-      child: SizedBox(
-        width: 28,
-        height: 28,
-        child: TextButton(
-          onPressed: onPressed,
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(28, 28),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            backgroundColor: bgSecondary,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
-              side: BorderSide(color: accentCyan.withOpacity(0.5), width: 1),
-            ),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: accentCyan,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              height: 1.0,
-            ),
           ),
         ),
       ),
@@ -997,7 +1143,7 @@ class _AutocompleteOverlay extends StatelessWidget {
     return CompositedTransformFollower(
       link: layerLink,
       showWhenUnlinked: false,
-      offset: const Offset(0, -200), // Position above input
+      offset: const Offset(0, -200),
       child: Material(
         color: Colors.transparent,
         child: Container(
