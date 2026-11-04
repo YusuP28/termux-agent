@@ -25,6 +25,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Ensure Gradle Wrapper is healthy
+        run: |
+          cd android
+          # Hapus file wrapper lama yang mungkin rusak
+          rm -rf gradle/wrapper/gradle-wrapper.jar
+          # Generate ulang wrapper
+          gradle wrapper --gradle-version 8.10
+          chmod +x gradlew
+
       - name: Build Release APK
         run: |
           flutter build apk --release --target-platform android-arm64 --split-per-abi
