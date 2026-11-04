@@ -25,17 +25,15 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Download Gradle 8.13 and regenerate wrapper
+      - name: Download official Gradle wrapper
         run: |
           GRADLE_VERSION=8.14
-          curl -fsSL -o /tmp/gradle.zip \
-            "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
-          unzip -q /tmp/gradle.zip -d /tmp/
-          # Use the downloaded Gradle to regenerate a proper wrapper
-          cd android
-          /tmp/gradle-${GRADLE_VERSION}/bin/gradle wrapper --gradle-version ${GRADLE_VERSION}
-          chmod +x gradlew
-          rm -rf /tmp/gradle-${GRADLE_VERSION} /tmp/gradle.zip
+          # Download the official wrapper script and JAR from Gradle's repo
+          curl -fsSL -o android/gradlew \
+            "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradlew"
+          curl -fsSL -o android/gradle/wrapper/gradle-wrapper.jar \
+            "https://raw.githubusercontent.com/gradle/gradle/v${GRADLE_VERSION}.0/gradle/wrapper/gradle-wrapper.jar"
+          chmod +x android/gradlew
 
       - name: Build Release APK
         run: |
