@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'models/provider.dart';
+import 'models/provider_data.dart';
+import 'screens/provider_screen.dart';
+import 'services/storage_service.dart';
+import 'services/api_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await StorageService.init();
   runApp(const TermuxAgentApp());
 }
 
@@ -64,7 +71,7 @@ class TermuxAgentApp extends StatelessWidget {
         ),
         inputDecorationTheme: InputDecorationTheme(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.zero,
             borderSide: const BorderSide(color: Color(0xFF30363D)),
@@ -115,6 +122,11 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   static const double _minFontSize = 8.0;
   static const double _maxFontSize = 24.0;
 
+  // Provider management
+  String _activeProviderId = 'nvidia_nim';
+  String _activeModel = '';
+  Provider _activeProvider = allProviders.firstWhere((p) => p.id == 'nvidia_nim');
+
   // Slash command autocomplete
   final LayerLink _inputLayerLink = LayerLink();
   OverlayEntry? _overlayEntry;
@@ -123,7 +135,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   int _selectedCommandIndex = 0;
   bool _showAutocomplete = false;
 
-  // Commands & Model
+  // Commands
   final List<SlashCommand> _commands = [
     SlashCommand('/help', 'Tampilkan bantuan'),
     SlashCommand('/clear', 'Bersihkan riwayat chat'),
@@ -132,11 +144,10 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     SlashCommand('/exit', 'Keluar aplikasi'),
   ];
 
-  String _currentModel = 'gpt-oss-120b';
-
   @override
   void initState() {
     super.initState();
+    _loadSettings();
     _addWelcomeMessage();
 
     _cursorController = AnimationController(
@@ -150,6 +161,20 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
 
     _controller.addListener(_onTextChanged);
     _focusNode.addListener(_onFocusChanged);
+  }
+
+  Future<void> _loadSettings() async {
+    final fontSize = await StorageService.getChatFontSize(defaultSize: 11.0);
+    final providerId = StorageService.getActiveProvider(defaultId: 'nvidia_nim');
+    final provider = getProviderById(providerId) ?? allProviders.firstWhere((p) => p.id == 'nvidia_nim');
+    final model = StorageService.getActiveModel(providerId, defaultModel: provider.defaultModel);
+
+    setState(() {
+      _chatFontSize = fontSize;
+      _activeProviderId = providerId;
+      _activeProvider = provider;
+      _activeModel = model;
+    });
   }
 
   void _addWelcomeMessage() {
@@ -283,6 +308,11 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
       return;
     }
 
+    _sendToAPI(text);
+    _controller.clear();
+  }
+
+  Future<void> _sendToAPI(String text) async {
     setState(() {
       _messages.add(TerminalMessage(
         type: MessageType.user,
@@ -296,16 +326,29 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
     _controller.clear();
     _scrollToBottom();
 
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      final responses = [
-        'Perintah dieksekusi dengan sukses.\nOutput: [simulasi hasil]',
-        'Memproses permintaan... Selesai.\nHasil: OK',
-        'Saya mengerti. Di mode terminal, saya bisa bantu:\n  • Operasi file\n  • Manajemen paket\n        • Info sistem\n  • Eksekusi script',
-        'Perintah tidak dikenal. Ketik "help" untuk bantuan.',
+    try {
+      // Build message history
+      final messages = <Map<String, String>>[
+        {'role': 'system', 'content': 'You are Termux Agent, a helpful terminal-based AI assistant. Respond in Indonesian.'},
       ];
-      final response = responses[_messages.length % responses.length];
+      
+      // Add recent messages (last 10)
+      for (final msg in _messages.reversed.take(10).reversed) {
+        if (msg.type == MessageType.user) {
+          messages.add({'role': 'user', 'content': msg.content});
+        } else if (msg.type == MessageType.assistant) {
+          messages.add({'role': 'assistant', 'content': msg.content});
+        }
+      }
 
+      final response = await ApiService.sendMessage(
+        provider: _activeProvider,
+        apiKey: StorageService.getApiKey(_activeProviderId) ?? '',
+        model: _activeModel,
+        messages: messages,
+      );
+
+      if (!mounted) return;
       setState(() {
         _messages.add(TerminalMessage(
           type: MessageType.assistant,
@@ -315,8 +358,18 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
         _isLoading = false;
         _tokenCount += response.length ~/ 4;
       });
-      _scrollToBottom();
-    });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(TerminalMessage(
+          type: MessageType.error,
+          content: e.toString().replaceFirst('Exception: ', ''),
+          timestamp: DateTime.now(),
+        ));
+        _isLoading = false;
+      });
+    }
+    _scrollToBottom();
   }
 
   void _executeSlashCommand(String command) {
@@ -351,7 +404,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
         final s = (duration.inSeconds % 60).toString().padLeft(2, '0');
         _messages.add(TerminalMessage(
           type: MessageType.system,
-          content: 'Statistik Sesi:\n  Session: $h:$m:$s\n  Tokens: ~${_tokenCount}\n  Mode: BUILD\n  Model: $_currentModel',
+          content: 'Statistik Sesi:\n  Session: $h:$m:$s\n  Tokens: ~${_tokenCount}\n  Mode: BUILD\n  Model: $_activeModel\n  Provider: ${_activeProvider.name}',
           timestamp: DateTime.now(),
         ));
         break;
@@ -371,13 +424,6 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
   }
 
   void _showModelDialog() {
-    const models = [
-      'gpt-oss-120b',
-      'llama-3.3-70b',
-      'claude-3.5-sonnet',
-      'gemini-1.5-pro',
-    ];
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -399,7 +445,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
           width: double.maxFinite,
           child: ListView.separated(
             shrinkWrap: true,
-            itemCount: models.length,
+            itemCount: _activeProvider.models.length,
             separatorBuilder: (_, __) => const Divider(
               color: Color(0xFF30363D),
               height: 1,
@@ -408,11 +454,12 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               endIndent: 8,
             ),
             itemBuilder: (context, index) {
-              final model = models[index];
-              final isSelected = model == _currentModel;
+              final model = _activeProvider.models[index];
+              final isSelected = model == _activeModel;
               return InkWell(
-                onTap: () {
-                  setState(() => _currentModel = model);
+                onTap: () async {
+                  await StorageService.setActiveModel(_activeProviderId, model);
+                  setState(() => _activeModel = model);
                   Navigator.pop(context);
                 },
                 child: Padding(
@@ -561,9 +608,129 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               const Divider(color: Color(0xFF30363D), height: 1),
               const SizedBox(height: 16),
 
-              // Model Selection Section
+              // Active Provider Section
               const Text(
-                'Model AI',
+                'Provider Aktif',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF58A6FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1117),
+                  border: Border.all(color: const Color(0xFF30363D)),
+                  borderRadius: BorderRadius.zero,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: _activeProviderId,
+                    dropdownColor: const Color(0xFF161B22),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFFC9D1D9),
+                      fontSize: 13,
+                    ),
+                    items: allProviders.map((provider) {
+                      return DropdownMenuItem(
+                        value: provider.id,
+                        child: Text(
+                          '${provider.name} (${provider.category.label})',
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFFC9D1D9),
+                            fontSize: 13,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) async {
+                      if (value != null) {
+                        final provider = getProviderById(value)!;
+                        await StorageService.setActiveProvider(value);
+                        final model = StorageService.getActiveModel(value, defaultModel: provider.defaultModel);
+                        setDialogState(() {
+                          _activeProviderId = value;
+                          _activeProvider = provider;
+                          _activeModel = model;
+                        });
+                        setState(() {
+                          _activeProviderId = value;
+                          _activeProvider = provider;
+                          _activeModel = model;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Model Selection
+              const Text(
+                'Model Default',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF58A6FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D1117),
+                  border: Border.all(color: const Color(0xFF30363D)),
+                  borderRadius: BorderRadius.zero,
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    isExpanded: true,
+                    value: _activeModel,
+                    dropdownColor: const Color(0xFF161B22),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      color: Color(0xFFC9D1D9),
+                      fontSize: 13,
+                    ),
+                    items: _activeProvider.models.map((model) {
+                      return DropdownMenuItem(
+                        value: model,
+                        child: Text(
+                          model,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            color: Color(0xFFC9D1D9),
+                            fontSize: 13,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) async {
+                      if (value != null) {
+                        await StorageService.setActiveModel(_activeProviderId, value);
+                        setDialogState(() => _activeModel = value);
+                        setState(() => _activeModel = value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Color(0xFF30363D), height: 1),
+              const SizedBox(height: 16),
+
+              // Provider Management Button
+              const Text(
+                'Kelola Provider',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: Color(0xFF58A6FF),
@@ -575,10 +742,10 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.smart_toy, size: 18, color: Color(0xFF58A6FF)),
-                  label: Text(
-                    'Pilih Model (${_currentModel})',
-                    style: const TextStyle(
+                  icon: const Icon(Icons.grid_view, size: 18, color: Color(0xFF58A6FF)),
+                  label: const Text(
+                    'Buka Kelola Provider',
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       color: Color(0xFF58A6FF),
                       fontSize: 12,
@@ -591,17 +758,25 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                   ),
                   onPressed: () {
                     Navigator.pop(context);
-                    _showModelDialog();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProviderScreen(
+                          activeProviderId: _activeProviderId,
+                          onProviderSelected: (id) async {
+                            final provider = getProviderById(id)!;
+                            await StorageService.setActiveProvider(id);
+                            final model = StorageService.getActiveModel(id, defaultModel: provider.defaultModel);
+                            setState(() {
+                              _activeProviderId = id;
+                              _activeProvider = provider;
+                              _activeModel = model;
+                            });
+                          },
+                        ),
+                      ),
+                    );
                   },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Model saat ini: $_currentModel',
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: Color(0xFF8B949E),
-                  fontSize: 11,
                 ),
               ),
             ],
@@ -619,6 +794,27 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showProviderScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProviderScreen(
+          activeProviderId: _activeProviderId,
+          onProviderSelected: (id) async {
+            final provider = getProviderById(id)!;
+            await StorageService.setActiveProvider(id);
+            final model = StorageService.getActiveModel(id, defaultModel: provider.defaultModel);
+            setState(() {
+              _activeProviderId = id;
+              _activeProvider = provider;
+              _activeModel = model;
+            });
+          },
         ),
       ),
     );
@@ -743,7 +939,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                     const SizedBox(width: 8),
                     // Settings icon
                     Tooltip(
-                      message: 'Pengaturan (Font & Model)',
+                      message: 'Pengaturan',
                       child: SizedBox(
                         width: 32,
                         height: 32,
@@ -856,7 +1052,7 @@ class _TerminalHomePageState extends State<TerminalHomePage> with SingleTickerPr
                       ),
                     ),
                     Text(
-                      _currentModel,
+                      _activeModel,
                       style: const TextStyle(
                         fontFamily: 'monospace',
                         color: Color(0xFF58A6FF),
